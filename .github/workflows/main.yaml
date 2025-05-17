@@ -1,77 +1,92 @@
-name: Secure DevSecOps Pipeline
+# # This is a GitHub Actions workflow file for a secure DevSecOps pipeline.
+# # It includes steps for building a Docker image, scanning it for vulnerabilities,
+# # deploying it to an Azure VM, and notifying a Slack channel on success or failure.
+# # The pipeline uses Bandit for static analysis, Trivy for container scanning,
+# # and SSH for deployment.
+# # The pipeline is triggered on push to the main branch.
+# # It uses secrets for sensitive information like Docker credentials and VM access.
+# # If you want to use this file, make sure to set up the required secrets in your GitHub repository.
+# # The secrets used in this file are:
+# # - DOCKER_USERNAME: Docker Hub username
+# # - DOCKER_PASSWORD: Docker Hub password  
+# # - VM_IP: IP address of the Azure VM
+# # - VM_USER: SSH username for the Azure VM
+# # - VM_PASS: SSH password for the Azure VM
+# # - SLACK_WEBHOOK_URL: Slack webhook URL for notifications
+# # Uncomment the following lines to enable the workflow
+# name: Secure DevSecOps Pipeline
+# on:
+#   push:
+#     branches: [main]
 
-on:
-  push:
-    branches: [main]
+# jobs:
+#   build-and-deploy:
+#     runs-on: ubuntu-latest
 
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v3
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+#     - name: Set up Python
+#       uses: actions/setup-python@v4
+#       with:
+#         python-version: 3.11
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: 3.11
+#     - name: Install dependencies
+#       run: pip install -r requirements.txt
 
-    - name: Install dependencies
-      run: pip install -r requirements.txt
+#     - name: Run Bandit (SAST)
+#       run: |
+#         pip install bandit
+#         bandit -r . || true
 
-    - name: Run Bandit (SAST)
-      run: |
-        pip install bandit
-        bandit -r . || true
+#     - name: Build Docker image
+#       run: docker build -t python-app:latest .
 
-    - name: Build Docker image
-      run: docker build -t python-app:latest .
+#     - name: Scan Docker image with Trivy
+#       uses: aquasecurity/trivy-action@master
+#       with:
+#         image-ref: python-app:latest
+#         format: table
+#         ignore-unfixed: true
 
-    - name: Scan Docker image with Trivy
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: python-app:latest
-        format: table
-        ignore-unfixed: true
+#     - name: Login to DockerHub
+#       run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-    - name: Login to DockerHub
-      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+#     - name: Push Docker image
+#       run: |
+#         docker tag python-app:latest ${{ secrets.DOCKER_USERNAME }}/python-app:latest
+#         docker push ${{ secrets.DOCKER_USERNAME }}/python-app:latest
 
-    - name: Push Docker image
-      run: |
-        docker tag python-app:latest ${{ secrets.DOCKER_USERNAME }}/python-app:latest
-        docker push ${{ secrets.DOCKER_USERNAME }}/python-app:latest
+#     - name: Deploy to Azure VM via SSH
+#       uses: appleboy/ssh-action@master
+#       with:
+#         host: ${{ secrets.VM_IP }}
+#         username: ${{ secrets.VM_USER }}
+#         password: ${{ secrets.VM_PASS }}
+#         script: |
+#           # Ensure docker is accessible (should be if cloud-init ran correctly)
+#           if ! command -v docker &> /dev/null
+#           then
+#             echo "Docker is not installed or not in PATH."
+#             exit 1
+#           fi
 
-    - name: Deploy to Azure VM via SSH
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.VM_IP }}
-        username: ${{ secrets.VM_USER }}
-        password: ${{ secrets.VM_PASS }}
-        script: |
-          # Ensure docker is accessible (should be if cloud-init ran correctly)
-          if ! command -v docker &> /dev/null
-          then
-            echo "Docker is not installed or not in PATH."
-            exit 1
-          fi
+#           docker stop app || true
+#           docker rm app || true
+#           docker pull ${{ secrets.DOCKER_USERNAME }}/secure-python-app:latest
+#           docker run -d --name app -p 80:5000 ${{ secrets.DOCKER_USERNAME }}/python-app:latest
 
-          docker stop app || true
-          docker rm app || true
-          docker pull ${{ secrets.DOCKER_USERNAME }}/secure-python-app:latest
-          docker run -d --name app -p 80:5000 ${{ secrets.DOCKER_USERNAME }}/python-app:latest
+#     - name: Notify Slack on success
+#       if: success()
+#       run: |
+#         curl -X POST -H 'Content-type: application/json' \
+#           --data '{"text":" CI/CD success: MR. MOHAMMAD, the App is deployed to Azure VM with success."}' \
+#           ${{ secrets.SLACK_WEBHOOK_URL }}
 
-    - name: Notify Slack on success
-      if: success()
-      run: |
-        curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":" CI/CD success: MR. MOHAMMAD, the App is deployed to Azure VM with success."}' \
-          ${{ secrets.SLACK_WEBHOOK_URL }}
-
-    - name: Notify Slack on failure
-      if: failure()
-      run: |
-        curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":" CI/CD failed!"}' \
-          ${{ secrets.SLACK_WEBHOOK_URL }}
+#     - name: Notify Slack on failure
+#       if: failure()
+#       run: |
+#         curl -X POST -H 'Content-type: application/json' \
+#           --data '{"text":" CI/CD failed!"}' \
+#           ${{ secrets.SLACK_WEBHOOK_URL }}
