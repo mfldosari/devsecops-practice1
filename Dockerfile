@@ -15,4 +15,4 @@ EXPOSE 5000
 #run the app
 # CMD is the command that will be run when the container is started
 # The command is run in the context of the WORKDIR
-CMD ["python", "app.py"]
+CMD ["python", "simple_app.py"]

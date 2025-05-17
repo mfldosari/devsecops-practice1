@@ -26,12 +26,12 @@ jobs:
         bandit -r . || true
 
     - name: Build Docker image
-      run: docker build -t secure-python-app:latest .
+      run: docker build -t python-app:latest .
 
     - name: Scan Docker image with Trivy
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: secure-python-app:latest
+        image-ref: python-app:latest
         format: table
         ignore-unfixed: true
 
@@ -40,8 +40,8 @@ jobs:
 
     - name: Push Docker image
       run: |
-        docker tag secure-python-app:latest ${{ secrets.DOCKER_USERNAME }}/secure-python-app:latest
-        docker push ${{ secrets.DOCKER_USERNAME }}/secure-python-app:latest
+        docker tag python-app:latest ${{ secrets.DOCKER_USERNAME }}/python-app:latest
+        docker push ${{ secrets.DOCKER_USERNAME }}/python-app:latest
 
     - name: Deploy to Azure VM via SSH
       uses: appleboy/ssh-action@master
@@ -60,7 +60,7 @@ jobs:
           docker stop app || true
           docker rm app || true
           docker pull ${{ secrets.DOCKER_USERNAME }}/secure-python-app:latest
-          docker run -d --name app -p 80:5000 ${{ secrets.DOCKER_USERNAME }}/secure-python-app:latest
+          docker run -d --name app -p 80:5000 ${{ secrets.DOCKER_USERNAME }}/python-app:latest
 
     - name: Notify Slack on success
       if: success()
