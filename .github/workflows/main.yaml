@@ -1,0 +1,70 @@
+name: Secure DevSecOps Pipeline
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.10
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+
+    - name: Run Bandit (SAST)
+      run: |
+        pip install bandit
+        bandit -r . || true
+
+    - name: Build Docker image
+      run: docker build -t secure-python-app:latest .
+
+    - name: Scan Docker image with Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: secure-python-app:latest
+        format: table
+        ignore-unfixed: true
+
+    - name: Login to DockerHub
+      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+    - name: Push Docker image
+      run: |
+        docker tag secure-python-app:latest ${{ secrets.DOCKER_USERNAME }}/secure-python-app:latest
+        docker push ${{ secrets.DOCKER_USERNAME }}/secure-python-app:latest
+
+    - name: Deploy to Azure VM via SSH
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.VM_IP }}
+        username: ${{ secrets.VM_USER }}
+        password: ${{ secrets.VM_PASS }}
+        script: |
+          docker stop app || true && docker rm app || true
+          docker pull ${{ secrets.DOCKER_USERNAME }}/secure-python-app:latest
+          docker run -d --name app -p 80:5000 ${{ secrets.DOCKER_USERNAME }}/secure-python-app:latest
+
+    - name: Notify Slack on success
+      if: success()
+      run: |
+        curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"✅ CI/CD success: App deployed to Azure VM."}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    - name: Notify Slack on failure
+      if: failure()
+      run: |
+        curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"❌ CI/CD failed!"}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
