@@ -18,8 +18,7 @@ jobs:
         python-version: 3.11
 
     - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
+      run: pip install -r requirements.txt
 
     - name: Run Bandit (SAST)
       run: |
@@ -51,7 +50,15 @@ jobs:
         username: ${{ secrets.VM_USER }}
         password: ${{ secrets.VM_PASS }}
         script: |
-          docker stop app || true && docker rm app || true
+          # Ensure docker is accessible (should be if cloud-init ran correctly)
+          if ! command -v docker &> /dev/null
+          then
+            echo "Docker is not installed or not in PATH."
+            exit 1
+          fi
+
+          docker stop app || true
+          docker rm app || true
           docker pull ${{ secrets.DOCKER_USERNAME }}/secure-python-app:latest
           docker run -d --name app -p 80:5000 ${{ secrets.DOCKER_USERNAME }}/secure-python-app:latest
 
@@ -59,12 +66,12 @@ jobs:
       if: success()
       run: |
         curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"✅ CI/CD success: App deployed to Azure VM."}' \
+          --data '{"text":" CI/CD success: MR. MOHAMMAD, the App is deployed to Azure VM with success."}' \
           ${{ secrets.SLACK_WEBHOOK_URL }}
 
     - name: Notify Slack on failure
       if: failure()
       run: |
         curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"❌ CI/CD failed!"}' \
+          --data '{"text":" CI/CD failed!"}' \
           ${{ secrets.SLACK_WEBHOOK_URL }}
